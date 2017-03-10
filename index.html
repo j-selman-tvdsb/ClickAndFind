@@ -1,1 +1,437 @@
 
+<!DOCTYPE html>
+
+<html>
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0" /> 
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA45m0o6ire3CwgDSAbMhjfGvDc8YSR268"></script>
+<script src="https://code.jquery.com/jquery-latest.min.js"></script>
+
+<script language="javascript">
+
+ //declare Global Variables
+var map;
+var currentQuestion=0;
+var winner =false;
+var guessesMade=0;
+var attemptsMade=0;
+var allTargets=[];
+var attempts=[];
+var targets=[];
+
+
+
+//Define the objects needed to play the game 
+  
+  
+  var Target ={ 
+			lat:null,   //latitude of the target
+			lng:null,   // longitude of the target
+			hint: null,  // hint used to help// student find the target
+			range: null,  // distance in meters that the click must be within to be considered correct
+			answer:null,  // the answer to the hint question
+			start_map: null, // the default starting
+			latLng:null   //google map object derived from lat and lng values above
+			
+			}
+			
+var Attempt={
+	infowindow:null,  //window of information that appears above peg
+	infoWindowText:null, //text that will be in the info window
+	distanceFromTarget:null, //distance calculation betweent the target lat long and the attempt lat long
+	marker:null, //type of marker green for start blue for attempt further from last attempt and red for guess closer to last attempt
+}
+
+// ID of the Google Spreadsheet
+  var spreadsheetID = "1wGlbCiqMDA3U4D-s6YsWw0JQScLGJXGLoTq2HTIMACQ";
+		 
+		 // Make sure it is public or set to Anyone with link can view 
+		 var url = "https://spreadsheets.google.com/feeds/list/" + spreadsheetID +"/od6/public/values?alt=json";
+		 
+		
+		 $.support.cors = true;
+		 $.ajax({
+		 url: url,
+		 cache: false,
+		 dataType: "json",
+		 error: function(returnstring,errorstring,data){alert(errorstring);},
+		 success: function(data) {
+			var entry = data.feed.entry;
+			numQuestions=-1;
+			$(entry).each(function(){
+					numQuestions++;
+					allTargets[numQuestions] = Object.beget(Target);
+					allTargets[numQuestions].lat= parseFloat(this.gsx$lat.$t);
+					allTargets[numQuestions].lng= parseFloat(this.gsx$lng.$t);
+					allTargets[numQuestions].hint=this.gsx$hint.$t;
+					allTargets[numQuestions].range=this.gsx$range.$t;
+					allTargets[numQuestions].answer=this.gsx$answer.$t;
+					allTargets[numQuestions].start_map=this.gsx$startmap.$t;
+					allTargets[numQuestions].latLng=new google.maps.LatLng({lat:parseFloat(this.gsx$lat.$t), lng: parseFloat(this.gsx$lng.$t)});
+			});
+		}
+		 
+  
+ 
+ });
+
+
+
+
+function beginGame(){
+
+ /*populate the games array by creating a prototype of the Game object.
+ This object will have the initial values of the object.
+ */
+
+$('#divHint').show();
+ showQuestion(0); 
+ 
+ }
+  
+/* method showQuestion
+purpose: sets up the question and the initial map for the game
+parameters: questionNum- the current question to show- will load the targets array value of same number
+*/
+
+function showQuestion(questionNum)
+{
+		currentQuestion=questionNum;
+		winner=false;
+		guessesMade=0;
+	  attemptsMade=0;
+		
+		
+		//set up display of map based property of Target.start_map
+
+		switch(allTargets[questionNum].start_map)
+		{
+		 case "Ontario":
+				//ontario
+				var myCenter = {lat: 48, lng: -83};
+				zoomVal=4;
+				break;
+		case 'London':
+				//london
+
+				var myCenter = {lat: 42.986953, lng: -81.243508};
+				zoomVal=12;
+				break;
+
+		case 'Canada':
+				//canada
+				var myCenter = {lat: 60.829182, lng: -104.803307};
+				zoomVal=3;
+				break;
+				
+		case 'World':
+				
+				var myCenter = {lat: 33.514488, lng: -40.115808};
+				zoomVal=1
+				break;
+				
+		default:
+				//Canada
+				var myCenter = {lat: 60.829182, lng: -104.803307};
+				zoomVal=3;
+				break;
+		}
+
+		 
+		  var mapProp = {
+			center:myCenter,
+			zoom:zoomVal,
+			clickableIcons:false,
+			streetViewControl: false,
+			mapTypeId:google.maps.MapTypeId.HYBRID
+			
+		  };
+		  map=new google.maps.Map(document.getElementById("googleMap"),mapProp);
+		  
+		  //add event listener to map
+		 map.addListener('click',
+		 function(e){
+			processClick(e);}
+		);
+		 
+		$('#divHint').html(allTargets[questionNum].hint + '<br/> <small>Your guess must be within <b><font size=\'+1\'>' + allTargets[questionNum].range + ' meters </b></font>of the target.');
+}
+
+//beget method
+	//Taken from "Javascript the Good Parts 2008"	
+	//this is way to take a base object and create new objects with the same type
+  	
+	if (typeof Object.beget !== 'function') {
+	Object.beget = function (o) {
+	var F = function () {};
+	F.prototype = o;
+	return new F();
+	};
+	}
+	
+	
+	/*method processClick
+  triggered by clicking on the map playing surface
+  will set a marker on the location clicked and display an infobox above the marker
+  providing feedback to the player.
+
+*/
+
+function processClick(message){
+    //perform calculations
+		var pointA= message.latLng + '';
+		var pntA=pointA.split(',');
+		pntALat=pntA[0].substring(1);
+		pntALong=pntA[1].substring(0,pntA[1].length-1);
+		var dist= getDistance(pntALat,pntALong,allTargets[currentQuestion].lat,allTargets[currentQuestion].lng);
+		
+		
+			guessesMade=attemptsMade;	
+			guessesMade++;
+			attemptsMade= guessesMade;
+			attempts[guessesMade]=Object.beget(Attempt);
+			attempts[guessesMade].distanceFromTarget = dist;
+			
+			
+		
+		if (dist<allTargets[currentQuestion].range)
+			winner=true;
+				
+		if(!winner)
+		{
+					
+			//place a marker at the guess
+			
+			   attempts[guessesMade].marker=new google.maps.Marker({
+					position:message.latLng,
+					label:guessesMade + ""
+				});
+				
+				if(guessesMade===1)
+				{
+					attempts[guessesMade].marker.setIcon('https://maps.google.com/mapfiles/ms/icons/green.png');
+					attempts[guessesMade].infoWindowText =  "<div>Attempt:" + guessesMade + "<br/>" +
+				"You are <b><font size='+1'>" + dist + "</font></b> meters away from the target. Try again.</div>"
+				}else 
+				{
+					if(attempts[guessesMade].distanceFromTarget>attempts[guessesMade-1].distanceFromTarget)
+					{
+						attempts[guessesMade].marker.setIcon('https://maps.google.com/mapfiles/ms/icons/blue.png');
+						attempts[guessesMade].infoWindowText =  "<div style='background-color: lightblue'>Attempt:" + guessesMade + " Your're getting colder.<br/>" +
+				"You are <b><font size='+1'>" + dist + "</font></b> meters away from the target. Try again.</div>"
+					}else
+					{
+						attempts[guessesMade].marker.setIcon('https://maps.google.com/mapfiles/ms/icons/red.png');
+						attempts[guessesMade].infoWindowText =  "<div style='background-color: #FF6666'>Attempt:" + guessesMade + " Your're getting warmer.<br/>" +
+				"You are <b><font size='+1'>" + dist + "</font></b> meters away from the target. Try again.</div>"
+					
+					}
+				
+				
+				
+				}
+
+			attempts[guessesMade].marker.setMap(map);
+			
+			
+			//create an info marker for the guesser
+			
+						
+			attempts[guessesMade].marker.infowindow = new google.maps.InfoWindow({
+				content: attempts[guessesMade].infoWindowText
+				
+			});
+			
+			
+			//add click event listener to marker
+			
+			attempts[guessesMade].marker.addListener('click',function(){processMarkerClick(this)} );
+			
+			if(guessesMade>1)
+				attempts[guessesMade-1].marker.infowindow.close();
+			
+				
+			attempts[guessesMade].marker.infowindow.open(map,attempts[guessesMade].marker);
+		}else
+		{
+			// close enough to target
+			guessesMade++;
+			
+			
+			if (currentQuestion < allTargets.length-1)
+			{
+			
+			$("#divHint").html("Congratulations you found the target " + allTargets[currentQuestion].answer + ".  " + "Explore " + allTargets[currentQuestion].answer + " in Google Street View." + 
+				"<br/></br><button class='center' onclick='showQuestion(" + parseInt(currentQuestion + 1) + ")'>Next Question</button>");
+				
+			}else
+			{
+			
+			$("#divHint").html("Congratulations you found the target " + allTargets[currentQuestion].answer + ".  "  + "Explore " + allTargets[currentQuestion].answer + " in Google Street View." +
+				"<br/></br>You have found all my locations. Congratualtations!!! <br/><br/><button class='center' onclick='window.close()'>Exit </button>");
+			
+			
+			}
+			
+			//Play an embedded Link before 
+			
+			var streetviewService = new google.maps.StreetViewService;
+			streetviewService.getPanorama(
+			{location: allTargets[currentQuestion].latLng},
+				function(result, status) {
+			if (status === google.maps.StreetViewStatus.OK) {
+					outsideGoogle = result;
+					initPanorama();
+			}else showInIFrame();
+      });
+			
+			
+			
+			
+		}
+		}
+		
+	/* method getDistance
+   from http://stackoverflow.com/questions/1502590/calculate-distance-between-two-points-in-google-maps-v3
+   based on Haverine formula https://en.wikipedia.org/wiki/Haversine_formula
+   calculates the distance between two points on a map based on their latitude and longitude
+  */
+
+ function getDistance(p1Lat,p1Long, p2Lat, p2Long) 
+ {
+  var R = 6378137; // Earth’s mean radius in meter
+  var dLat = rad(p2Lat - p1Lat);
+  var dLong = rad(p2Long - p1Long);
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(rad(p1Lat)) * Math.cos(rad(p2Lat)) *
+    Math.sin(dLong / 2) * Math.sin(dLong / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  var d = R * c;
+  return parseInt(d) ;
+}
+
+var rad = function(x) {
+  return x * Math.PI / 180;
+};
+
+
+
+
+function initPanorama()
+		{
+			
+			
+			
+			var panorama = new google.maps.StreetViewPanorama(
+				document.getElementById('googleMap'), {
+				position: allTargets[currentQuestion].latLng,
+				pov: {
+				heading: 0,
+				pitch: 10
+			}
+			});
+		map.setStreetView(panorama);
+		
+		
+		}
+		
+//when a maker is clicked close all the info boxes then show the one that is clicked.		
+function processMarkerClick(marker)
+		{
+		
+				//close all the marker info windows
+				
+				for(i=1;i<attempts.length;i++)
+				{
+					if(attempts[i].marker.infowindow)
+						attempts[i].marker.infowindow.close();
+				}
+
+				//open the marker info box that is clicked
+				marker.infowindow.open(map,marker);
+		
+		}
+
+</script>
+
+<style>
+
+body{
+background-color: lightgreen;
+height: 100%;
+
+
+}
+
+#gameSurface{
+    
+    border: 3px solid blue;
+    padding: 10px;
+	height:800px;
+
+}
+
+#header{
+
+	font-family: Arial;
+	font-size:20pt;
+	text-align: center;
+	color: black;
+	font-weight: bold
+
+}
+.center{
+
+	margin: auto;
+    width: 80%;
+}
+
+#googleMap{
+	padding:20px;
+	color:black;
+	font_size:15 pt;
+	height:60%;
+
+}
+
+#divHint{
+
+background-color: lightyellow;
+color:black;
+font-size:10pt;
+height:100;
+
+
+
+
+}
+
+
+</style>
+</head>
+
+<body>
+
+<div id="gameSurface" class="center">
+<br/>
+<div id='divHint'></div>
+<br/>
+<div id="googleMap">
+
+	Click N'Find is a game that uses Google Maps to find locations based on a clue. Zoom in on the area that you think answers the clue.  You will be given the distance you are away from the actual target.  You can try as many times as you need to find the target, but try to do it in as few attempts as possible.
+	<br/>
+	<br/>
+	When you correctly guess the target location, you will be allowed to explore the area in Google's Street View.
+	<br/>
+	<br/>
+	<div style="text-align:center"><button onclick="beginGame();">Start Game</button></div>
+
+	</div>
+</div>
+
+
+</body>
+
+
+</html>
